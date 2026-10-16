@@ -46,7 +46,14 @@ Transactions (recurring + variable, multi-currency), Bank Accounts, Categories/S
 - [x] CSV Import (bulk upload bank CSV → transactions, client parse + preview).
 - [x] Expense Explorer (category donut + drill-down trend & transactions).
 - [x] Live Exchange Rates (open.er-api.com, refreshable; all conversions use live FX).
-- Tested: backend 27/27 pytest, frontend E2E 100% (2 rounds).
+- [x] Budget Alerts (dashboard card for categories ≥80%/≥100% of monthly budget).
+- [x] Recurring Autopilot (monthly cron + manual run; auto-adds recurring bills/paychecks; Setup toggle).
+- [x] Goal Funding Plan (per-paycheck/monthly allocation to hit each sinking-fund target on time).
+- [x] Year Compare (this year vs last year KPIs, grouped chart, month table; 2025 data seeded).
+- Tested: backend 38/38 pytest, frontend E2E 100% (3 rounds).
+
+## Scheduled Jobs
+- `.emergent/crons.yml`: `autopilot-monthly` → POST /api/cron/autopilot on `0 6 1 * *` (1st of month, 06:00 UTC). Secured with WEBHOOK_CRON_SECRET; backgrounds work for all autopilot-enabled users.
 
 ## Backlog (prioritized)
 - P1: Expense Distribution as a dedicated page (currently in Dashboard donut + Monthly).

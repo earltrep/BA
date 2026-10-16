@@ -353,3 +353,99 @@ class TestExpenseBreakdown:
         for c in data["categories"]:
             assert "name" in c and "total" in c and "monthly" in c
             assert len(c["monthly"]) == 12
+
+
+# ---- Round 3: Budget Alerts, Autopilot, Goals Plan, Compare ----
+class TestAlerts:
+    def test_alerts(self, demo_client):
+        r = demo_client.get(f"{API}/alerts")
+        assert r.status_code == 200
+        d = r.json()
+        assert "alerts" in d and "month" in d and "base_currency" in d
+        for a in d["alerts"]:
+            assert a["level"] in ("warning", "over")
+            assert a["pct"] >= 80
+            assert "spent" in a and "budget" in a and "name" in a
+
+
+class TestAutopilot:
+    def test_autopilot_run_idempotent(self, demo_client):
+        r = demo_client.post(f"{API}/autopilot/run")
+        assert r.status_code == 200
+        d = r.json()
+        assert "inserted" in d and "month" in d
+        # run again - should be 0
+        r2 = demo_client.post(f"{API}/autopilot/run")
+        assert r2.status_code == 200
+        assert r2.json()["inserted"] == 0
+
+    def test_cron_no_token(self):
+        r = requests.post(f"{API}/cron/autopilot", timeout=20)
+        assert r.status_code == 401
+
+    def test_cron_bad_token(self):
+        r = requests.post(f"{API}/cron/autopilot", headers={"Authorization": "Bearer wrong"}, timeout=20)
+        assert r.status_code == 401
+
+    def test_cron_good_token(self):
+        secret = open("/app/backend/.env").read().split('WEBHOOK_CRON_SECRET=')[1].split('\n')[0].strip().strip('"')
+        r = requests.post(f"{API}/cron/autopilot", headers={"Authorization": f"Bearer {secret}"}, timeout=20)
+        assert r.status_code in (200, 202), r.text
+        assert r.json().get("queued") is True
+
+    def test_settings_autopilot_toggle(self, demo_client):
+        r = demo_client.put(f"{API}/settings", json={"autopilot": True})
+        assert r.status_code == 200
+        assert r.json().get("autopilot") is True
+        r = demo_client.put(f"{API}/settings", json={"autopilot": False})
+        assert r.json().get("autopilot") is False
+
+
+class TestGoalsPlan:
+    def test_plan(self, demo_client):
+        r = demo_client.get(f"{API}/goals/plan")
+        assert r.status_code == 200
+        d = r.json()
+        for k in ("avg_monthly_income", "total_monthly", "pct_income", "plan", "base_currency"):
+            assert k in d
+        for p in d["plan"]:
+            for k in ("id", "name", "remaining", "months_left", "monthly"):
+                assert k in p
+
+
+class TestCompare:
+    def test_compare(self, demo_client):
+        r = demo_client.get(f"{API}/compare")
+        assert r.status_code == 200
+        d = r.json()
+        for k in ("current_year", "previous_year", "rows", "totals"):
+            assert k in d
+        assert len(d["rows"]) == 12
+        assert "current" in d["totals"] and "previous" in d["totals"]
+        # Prior year (2025) must have some data seeded
+        assert d["totals"]["previous"]["income"] > 0, "Previous year not seeded"
+        assert d["totals"]["previous"]["expense"] > 0
+
+
+class TestCurrentYearRegression:
+    def test_dashboard_ytd_not_doubled(self, demo_client):
+        r = demo_client.get(f"{API}/dashboard")
+        assert r.status_code == 200
+        inc = r.json()["total_income"]
+        # Should be ~58000 current year only, not doubled ~116800
+        assert inc < 90000, f"YTD income looks doubled: {inc}"
+        assert inc > 20000, f"YTD income too low: {inc}"
+
+    def test_paycheck_current_year(self, demo_client):
+        r = demo_client.get(f"{API}/paycheck")
+        assert r.status_code == 200
+        cur_year = str(__import__("datetime").datetime.now().year)
+        for p in r.json()["paychecks"]:
+            assert p["date"].startswith(cur_year), f"Paycheck not current year: {p['date']}"
+
+    def test_expense_breakdown_current_year(self, demo_client):
+        r = demo_client.get(f"{API}/expenses/breakdown")
+        assert r.status_code == 200
+        d = r.json()
+        # breakdown total should be reasonable (not doubled)
+        assert d["total"] > 0
