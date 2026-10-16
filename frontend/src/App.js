@@ -13,6 +13,8 @@ import Accounts from "./pages/Accounts";
 import Setup from "./pages/Setup";
 import Annual from "./pages/Annual";
 import Monthly from "./pages/Monthly";
+import Paycheck from "./pages/Paycheck";
+import ExpenseExplorer from "./pages/ExpenseExplorer";
 import CalendarView from "./pages/CalendarView";
 import Budget503020 from "./pages/Budget503020";
 import SinkingFunds from "./pages/SinkingFunds";
@@ -55,6 +57,8 @@ function App() {
               <Route path="/setup" element={<Setup />} />
               <Route path="/annual" element={<Annual />} />
               <Route path="/monthly" element={<Monthly />} />
+              <Route path="/paycheck" element={<Paycheck />} />
+              <Route path="/expenses" element={<ExpenseExplorer />} />
               <Route path="/calendar" element={<CalendarView />} />
               <Route path="/budget" element={<Budget503020 />} />
               <Route path="/funds" element={<SinkingFunds />} />

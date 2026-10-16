@@ -4,20 +4,28 @@ import { money, CURRENCY_LIST, CURRENCY_SYMBOLS } from "../lib/currency";
 import { useSettings } from "../context/SettingsContext";
 import { PageHeader, Loader } from "../components/ui-kit";
 import Modal, { Field, inputCls, PrimaryBtn } from "../components/Modal";
-import { Plus, Pencil, Trash2, Save } from "lucide-react";
+import { Plus, Pencil, Trash2, Save, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 const BUCKETS = ["needs", "wants", "savings", "income"];
 const empty = { name: "", type: "expense", bucket: "needs", budget: "", color: "#64748b" };
 
 export default function Setup() {
-  const { settings, update, refresh } = useSettings();
+  const { settings, update, refresh, refreshRates, ratesUpdated, currencies } = useSettings();
   const [cats, setCats] = useState(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("USD");
+  const [refreshing, setRefreshing] = useState(false);
+
+  const doRefreshRates = async () => {
+    setRefreshing(true);
+    try { await refreshRates(); toast.success("Exchange rates updated"); }
+    catch { toast.error("Couldn't refresh rates"); }
+    finally { setRefreshing(false); }
+  };
 
   const load = () => api.get("/categories").then((r) => setCats(r.data));
   useEffect(() => { load(); }, []);
@@ -67,6 +75,32 @@ export default function Setup() {
         <button onClick={saveSettings} data-testid="save-settings-btn" className="mt-5 inline-flex items-center gap-2 h-10 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium transition-colors">
           <Save className="h-4 w-4" /> Save settings
         </button>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm mb-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h3 className="font-head font-semibold text-lg flex items-center gap-2">
+              Live exchange rates
+              <span className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Live</span>
+            </h3>
+            <p className="text-sm text-slate-500 mt-1">
+              Multi-currency totals are converted using real-time rates{ratesUpdated ? ` · updated ${ratesUpdated}` : ""}.
+            </p>
+          </div>
+          <button onClick={doRefreshRates} disabled={refreshing} data-testid="refresh-rates-btn" className="inline-flex items-center gap-2 h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition-colors disabled:opacity-60">
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh rates
+          </button>
+        </div>
+        <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {Object.entries(currencies).slice(0, 10).map(([code, meta]) => (
+            <div key={code} data-testid={`rate-${code}`} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
+              <div className="text-xs text-slate-400">{meta.symbol} {code}</div>
+              <div className="font-head font-semibold tnum">{Number(meta.rate).toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-slate-400 mt-3">Rates shown per 1 USD.</p>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">

@@ -6,11 +6,9 @@ import { PageHeader, StatCard, Loader } from "../components/ui-kit";
 import { TrendingUp, TrendingDown, Wallet } from "lucide-react";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const RATES = { USD: 1, EUR: 0.92, GBP: 0.79, INR: 83.2, CAD: 1.36, AUD: 1.52, JPY: 157, CNY: 7.24, CHF: 0.88, SGD: 1.35, AED: 3.67, BRL: 5, ZAR: 18.5, MXN: 17, NZD: 1.65 };
-const conv = (a, f, t) => (a / (RATES[f] || 1)) * (RATES[t] || 1);
 
 export default function Monthly() {
-  const { baseCurrency } = useSettings();
+  const { baseCurrency, convert } = useSettings();
   const [txns, setTxns] = useState(null);
   const [cats, setCats] = useState([]);
   const now = new Date();
@@ -29,7 +27,7 @@ export default function Monthly() {
     let income = 0, expense = 0;
     const byCat = {};
     monthTxns.forEach((t) => {
-      const amt = conv(Number(t.amount), t.currency || "USD", baseCurrency);
+      const amt = convert(Number(t.amount), t.currency || "USD", baseCurrency);
       if (t.type === "income") income += amt;
       else {
         expense += amt;
@@ -40,7 +38,7 @@ export default function Monthly() {
       }
     });
     return { income, expense, byCat };
-  }, [monthTxns, cats, baseCurrency]);
+  }, [monthTxns, cats, baseCurrency, convert]);
 
   if (!txns) return <Loader />;
   const cur = baseCurrency;

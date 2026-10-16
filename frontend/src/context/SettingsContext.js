@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { api } from "../lib/api";
 
 const SettingsCtx = createContext(null);
@@ -24,9 +24,27 @@ export function SettingsProvider({ children }) {
   };
 
   const baseCurrency = settings?.base_currency || "USD";
+  const currencies = useMemo(() => settings?.currencies || {}, [settings]);
+
+  const convert = useCallback(
+    (amount, from = "USD", to = baseCurrency) => {
+      const rf = currencies[from]?.rate || 1;
+      const rt = currencies[to]?.rate || 1;
+      return (Number(amount || 0) / rf) * rt;
+    },
+    [currencies, baseCurrency]
+  );
+
+  const refreshRates = useCallback(async () => {
+    const { data } = await api.post("/rates/refresh");
+    setSettings((s) => ({ ...s, currencies: data.rates, rates_updated: data.updated }));
+    return data;
+  }, []);
 
   return (
-    <SettingsCtx.Provider value={{ settings, baseCurrency, refresh, update }}>
+    <SettingsCtx.Provider
+      value={{ settings, baseCurrency, currencies, convert, refresh, update, refreshRates, ratesUpdated: settings?.rates_updated }}
+    >
       {children}
     </SettingsCtx.Provider>
   );

@@ -8,7 +8,11 @@ import os
 import json
 import uuid
 import random
+import asyncio
 import logging
+from collections import defaultdict
+
+import requests
 from datetime import datetime, timezone, timedelta, date
 from typing import List, Optional
 
@@ -61,11 +65,46 @@ CURRENCIES = {
 }
 
 
+LIVE_RATES: dict = {}
+RATES_UPDATED = None
+
+
+def get_rate(cur: str) -> float:
+    if cur in LIVE_RATES:
+        return LIVE_RATES[cur]
+    return CURRENCIES.get(cur, CURRENCIES["USD"])["rate"]
+
+
+async def refresh_rates():
+    global LIVE_RATES, RATES_UPDATED
+
+    def _fetch():
+        r = requests.get("https://open.er-api.com/v6/latest/USD", timeout=12)
+        return r.json()
+
+    try:
+        data = await asyncio.get_event_loop().run_in_executor(None, _fetch)
+        if data.get("result") == "success":
+            rates = data.get("rates", {})
+            LIVE_RATES = {c: rates[c] for c in CURRENCIES if c in rates}
+            RATES_UPDATED = data.get("time_last_update_utc")
+            logger.info("FX rates refreshed")
+    except Exception as e:
+        logger.warning(f"FX refresh failed: {e}")
+
+
+def currencies_payload() -> dict:
+    return {
+        c: {"symbol": meta["symbol"], "name": meta["name"], "rate": round(get_rate(c), 6)}
+        for c, meta in CURRENCIES.items()
+    }
+
+
 def convert(amount: float, frm: str, to: str) -> float:
     frm = frm if frm in CURRENCIES else "USD"
     to = to if to in CURRENCIES else "USD"
-    usd = amount / CURRENCIES[frm]["rate"]
-    return round(usd * CURRENCIES[to]["rate"], 2)
+    usd = amount / get_rate(frm)
+    return round(usd * get_rate(to), 2)
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +233,10 @@ class AIRequest(BaseModel):
     message: str
 
 
+class BulkTxnIn(BaseModel):
+    transactions: List[TransactionIn]
+
+
 # ---------------------------------------------------------------------------
 # Generic CRUD helpers
 # ---------------------------------------------------------------------------
@@ -280,7 +323,8 @@ async def get_settings(user=Depends(current_user)):
     if not s:
         s = {"user_id": user["id"], "name": user["name"], "base_currency": "USD"}
         await db.settings.insert_one(dict(s))
-    s["currencies"] = CURRENCIES
+    s["currencies"] = currencies_payload()
+    s["rates_updated"] = RATES_UPDATED
     return s
 
 
@@ -601,6 +645,134 @@ async def dashboard(user=Depends(current_user)):
 
 
 # ---------------------------------------------------------------------------
+# Live exchange rates
+# ---------------------------------------------------------------------------
+@api.get("/rates")
+async def get_rates(user=Depends(current_user)):
+    return {"rates": currencies_payload(), "updated": RATES_UPDATED, "live": bool(LIVE_RATES)}
+
+
+@api.post("/rates/refresh")
+async def refresh_rates_ep(user=Depends(current_user)):
+    await refresh_rates()
+    return {"rates": currencies_payload(), "updated": RATES_UPDATED, "live": bool(LIVE_RATES)}
+
+
+# ---------------------------------------------------------------------------
+# Bulk import (CSV)
+# ---------------------------------------------------------------------------
+@api.post("/transactions/bulk")
+async def bulk_transactions(body: BulkTxnIn, user=Depends(current_user)):
+    docs = [
+        {
+            "id": str(uuid.uuid4()),
+            "user_id": user["id"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            **t.model_dump(),
+        }
+        for t in body.transactions
+    ]
+    if docs:
+        await db.transactions.insert_many(docs)
+    return {"inserted": len(docs)}
+
+
+# ---------------------------------------------------------------------------
+# Paycheck planner
+# ---------------------------------------------------------------------------
+@api.get("/paycheck")
+async def paycheck(user=Depends(current_user)):
+    uid = user["id"]
+    s = await db.settings.find_one({"user_id": uid}, {"_id": 0}) or {"base_currency": "USD"}
+    base = s.get("base_currency", "USD")
+    txns = await list_docs("transactions", uid)
+    cats = {c["id"]: c for c in await list_docs("categories", uid)}
+
+    month_income = defaultdict(float)
+    month_bills = defaultdict(float)
+    month_savings = defaultdict(float)
+    incomes = []
+    for t in txns:
+        amt = convert(float(t["amount"]), t.get("currency", "USD"), base)
+        mk = t.get("date", "")[:7]
+        if t["type"] == "income":
+            month_income[mk] += amt
+            incomes.append((t, amt, mk))
+        else:
+            cat = cats.get(t.get("category_id"))
+            bucket = cat["bucket"] if cat else "needs"
+            if bucket == "savings":
+                month_savings[mk] += amt
+            elif t.get("kind") == "recurring" or bucket == "needs":
+                month_bills[mk] += amt
+
+    paychecks = []
+    for t, amt, mk in incomes:
+        inc = month_income[mk] or amt
+        share = amt / inc if inc else 1.0
+        bills = round(month_bills[mk] * share, 2)
+        savings = round(month_savings[mk] * share, 2)
+        spending = round(max(amt - bills - savings, 0), 2)
+        paychecks.append({
+            "id": t["id"], "date": t["date"], "description": t["description"],
+            "amount": round(amt, 2), "bills": bills, "savings": savings, "spending": spending,
+        })
+    paychecks.sort(key=lambda x: x["date"], reverse=True)
+    return {
+        "base_currency": base,
+        "paychecks": paychecks,
+        "totals": {
+            "amount": round(sum(p["amount"] for p in paychecks), 2),
+            "bills": round(sum(p["bills"] for p in paychecks), 2),
+            "savings": round(sum(p["savings"] for p in paychecks), 2),
+            "spending": round(sum(p["spending"] for p in paychecks), 2),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Expense explorer / breakdown
+# ---------------------------------------------------------------------------
+@api.get("/expenses/breakdown")
+async def expense_breakdown(user=Depends(current_user)):
+    uid = user["id"]
+    s = await db.settings.find_one({"user_id": uid}, {"_id": 0}) or {"base_currency": "USD"}
+    base = s.get("base_currency", "USD")
+    txns = await list_docs("transactions", uid)
+    cats = {c["id"]: c for c in await list_docs("categories", uid)}
+    year = datetime.now(timezone.utc).year
+    months = [f"{year}-{m:02d}" for m in range(1, 13)]
+
+    data = {}
+    for t in txns:
+        if t["type"] != "expense":
+            continue
+        amt = convert(float(t["amount"]), t.get("currency", "USD"), base)
+        cat = cats.get(t.get("category_id"))
+        name = cat["name"] if cat else "Uncategorized"
+        color = cat["color"] if cat else "#94a3b8"
+        mk = t.get("date", "")[:7]
+        d = data.setdefault(name, {"name": name, "color": color, "total": 0.0, "monthly": {m: 0.0 for m in months}})
+        d["total"] += amt
+        if mk in d["monthly"]:
+            d["monthly"][mk] += amt
+
+    cats_list = sorted(data.values(), key=lambda x: x["total"], reverse=True)
+    for c in cats_list:
+        c["total"] = round(c["total"], 2)
+        c["monthly"] = [
+            {"month": m, "label": datetime.strptime(m, "%Y-%m").strftime("%b"), "value": round(c["monthly"][m], 2)}
+            for m in months
+        ]
+    return {
+        "base_currency": base,
+        "categories": cats_list,
+        "months": [datetime.strptime(m, "%Y-%m").strftime("%b") for m in months],
+        "total": round(sum(c["total"] for c in cats_list), 2),
+    }
+
+
+# ---------------------------------------------------------------------------
 # AI insights (streaming)
 # ---------------------------------------------------------------------------
 @api.get("/ai/history")
@@ -807,6 +979,7 @@ async def startup():
                 {"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}}
             )
         await seed_demo(existing["id"])
+    await refresh_rates()
     logger.info("Startup complete")
 
 

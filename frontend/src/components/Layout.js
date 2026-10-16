@@ -5,7 +5,7 @@ import { useSettings } from "../context/SettingsContext";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, SlidersHorizontal, BarChart3,
   CalendarRange, CalendarDays, PieChart, PiggyBank, TrendingDown, Landmark,
-  LineChart, CalendarCheck, Sparkles, LogOut, Menu, X, Coins,
+  LineChart, CalendarCheck, Sparkles, LogOut, Menu, X, Coins, Receipt, Compass,
 } from "lucide-react";
 
 const NAV = [
@@ -23,6 +23,8 @@ const NAV = [
     items: [
       { to: "/annual", label: "Annual Totals", icon: BarChart3 },
       { to: "/monthly", label: "Monthly Insights", icon: CalendarRange },
+      { to: "/paycheck", label: "Paycheck Planner", icon: Receipt },
+      { to: "/expenses", label: "Expense Explorer", icon: Compass },
       { to: "/calendar", label: "Calendar", icon: CalendarDays },
     ],
   },
