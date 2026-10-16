@@ -1,0 +1,100 @@
+{
+  "theme": "Clean & light modern fintech (Light Theme primarily)",
+  "archetype": "ORGANIC & EARTHY mixed with SWISS & HIGH-CONTRAST (Fintech precision)",
+  "typography": {
+    "headings": {
+      "fontFamily": "Manrope",
+      "style": "Clean, authoritative but approachable. Tracking tight on large headings.",
+      "weights": ["font-medium", "font-semibold"]
+    },
+    "body": {
+      "fontFamily": "IBM Plex Sans",
+      "style": "Legible, clean, strictly using tabular-nums for all financial data to prevent jumping."
+    },
+    "scale_rules": {
+      "H1": "text-4xl sm:text-5xl lg:text-6xl tracking-tighter",
+      "H2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight",
+      "H3": "text-xl sm:text-2xl",
+      "body": "text-base text-slate-600",
+      "labels": "text-xs tracking-[0.2em] uppercase text-slate-500 font-medium"
+    },
+    "forbidden_fonts": ["Inter", "Roboto", "Open Sans", "Lato", "Space Grotesk"]
+  },
+  "colors": {
+    "background": "bg-slate-50",
+    "surface": "bg-white",
+    "border": "border-slate-200",
+    "text": {
+      "primary": "text-slate-900",
+      "secondary": "text-slate-500",
+      "tertiary": "text-slate-400"
+    },
+    "brand": {
+      "primary": "bg-slate-900 hover:bg-slate-800 text-white",
+      "accent": "text-blue-600 bg-blue-50"
+    },
+    "semantic": {
+      "positive": "text-emerald-600 bg-emerald-50",
+      "negative": "text-rose-600 bg-rose-50",
+      "warning": "text-amber-600 bg-amber-50"
+    },
+    "forbidden_colors": ["#7351B7", "#1B93A4"]
+  },
+  "grids_and_layouts": {
+    "dashboard_grid": "Bento style: grid-cols-1 md:grid-cols-3 lg:grid-cols-4 with gap-6.",
+    "spacing": "Generous. Use p-6 or p-8 inside structural cards. Avoid cramped data.",
+    "alignment": "Right-align all numeric columns in tables. Left-align text. Use flex-row justify-between for key/value pairs."
+  },
+  "surfaces_and_components": {
+    "cards": "Cardless or flat solid surfaces. bg-white, border border-slate-200, rounded-2xl, shadow-sm. NO heavy drop shadows.",
+    "buttons": "Pill-shaped or rounded-lg. Sharp hover states with slight opacity or color shift.",
+    "tables": "Simple, no heavy borders. 1px bottom border on rows. Tabular numerals (tabular-nums) are MANDATORY.",
+    "navigation": "Narrow left sidebar (collapsed) or clean top navigation with glassmorphism (backdrop-blur-xl bg-white/70) if sticky.",
+    "charts": "Shadcn/Recharts. Use soft colors, hide grid lines or make them very faint (slate-100). Keep charts low-contrast so text stays primary."
+  },
+  "motion": {
+    "hover": "Subtle translate-y-[-2px] or bg color shifts. transition-all is FORBIDDEN. Use specific transitions like transition-colors, transition-transform.",
+    "entrance": "Staggered fade-in for dashboard widgets.",
+    "accessibility": "Respect prefers-reduced-motion."
+  },
+  "visual_enhancers": {
+    "icons": "lucide-react for standard UI, @phosphor-icons/react (Duotone) for high-end dashboard feel.",
+    "data_display": "One dominant financial figure per page (e.g., Net Worth). Use small trend indicators (green/red pills)."
+  },
+  "media": {
+    "image_urls": {
+      "login_background": {
+        "url": "https://images.unsplash.com/photo-1671716784499-a3d26826d844?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGNhbG0lMjBzb2Z0JTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3OTIxNzAxNjV8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Soft flowing waves in shades of cream, peach, and light orange. Use for auth page split screen."
+      },
+      "user_avatar": {
+        "url": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBzbWlsaW5nJTIwaGVhZHNob3R8ZW58MHx8fHwxNzkyMTcwMTY1fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Closeup photography of woman smiling. Use for dummy user profile picture."
+      }
+    }
+  },
+  "accessibility": {
+    "contrast": "Ensure minimum 4.5:1 ratio for normal text. Check gray text carefully.",
+    "interactive": "Hover states must have higher contrast or clear color shift. data-testid attributes are MANDATORY for all interactive elements."
+  },
+  "instructions_to_main_agent": [
+    "Build out the 28-tab equivalent using a modern SPA routing setup with grouped nested routes.",
+    "Use Shadcn UI components but heavily customize them to remove the 'default Vercel' look (use Manrope font, softer borders).",
+    "All financial metrics MUST use `tabular-nums` class.",
+    "Do not use generic 'Dashboard' layouts. Use the Bento Grid for the All-in-one Dashboard.",
+    "For the AI Insights panel, create a clean conversational UI with distinct user/AI bubbles, using the brand accent color for AI.",
+    "Avoid full screen gradients. Keep the background solid slate-50.",
+    "Provide a robust data mocking strategy for the transaction tables and charts so they look populated and realistic."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Do not converge toward generic outputs. Use layered design elements with z-index hierarchy.",
+    "Never use AI assistant Emoji characters (like 🤖🧠) for icons. Use Phosphor or Lucide icons instead.",
+    "Do not center align the app container (.App { text-align: center; } is banned).",
+    "Use 2-3x more spacing than feels comfortable (p-6, p-8, p-12).",
+    "Always use sonner for toasts (located in /app/frontend/src/components/ui/sonner.jsx).",
+    "Prioritize using pre-existing components from src/components/ui.",
+    "Ensure 100% of the interactive UI uses standard HTML attributes (e.g. data-testid) for automated testing.",
+    "Use .js files for React components, not .tsx.",
+    "DO NOT use complete `transparent` background in header, overlays, or any surface that has content under it."
+  ]
+}
