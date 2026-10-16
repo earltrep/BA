@@ -1,0 +1,34 @@
+{
+  "summary": "First-pass end-to-end testing of Budgetly. Backend: 20/20 pytest tests pass (auth, settings, dashboard, accounts, categories, transactions + filters, sinking funds, debts + payoff snowball/avalanche, networth, no-spend, AI history + streaming). Frontend: demo login works, dashboard renders KPIs + charts, Transactions page shows 220 seeded rows with working recurring filter and successful add-transaction flow, Debt Payoff page calculates and renders schedule, AI Insights streams a real Claude response and persists to history. Navigation to Accounts, Setup, Annual, Monthly, Calendar, 50/30/20, Net Worth all loads cleanly. Note: AI took ~5-8s to stream; expected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "CORS middleware", "issue": "allow_credentials=True combined with default allow_origins='*' is spec-invalid for cookie-based auth. App uses Bearer in localStorage so it works, but set an explicit CORS_ORIGINS list if you ever add cookie auth."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Setup page (and other <select> currency pickers)", "issues": ["React hydration warning: '<span> cannot be a child of <option>'. Caused by the dev-tool x-source wrapper <span> injected inside <option> children. User-visible rendering is fine, but console shows a warning in dev mode."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Optional: set explicit CORS_ORIGINS instead of '*' now that auth is Bearer-based (hardening).",
+    "Optional: wrap currency option labels so the dev-tool injected span is avoided (e.g. render only a string inside <option>)."
+  ],
+  "critical_code_review_comments": [
+    "server.py (831 lines) is nearing the 700-line split threshold; consider splitting into routers/auth.py, routers/transactions.py, services/seed.py for maintainability.",
+    "payoff() loop is O(months * debts) with a hard cap of 600 months; fine for current data but should be benchmarked if users add 20+ debts.",
+    "startup() silently reseeds demo data for the admin on every boot if demo transactions already exist it exits early - idempotent, good.",
+    "AI streaming endpoint returns text/plain (not SSE) - frontend reads chunks correctly, matches spec note."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py", "/app/test_reports/iteration_1.json"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "demo@budgetly.app / demo1234 (pre-seeded admin, works)",
+  "seed_data_creation": "Used seeded demo data only. Created and cleaned transient TEST_* rows via CRUD tests.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests live at /app/backend/tests/backend_test.py (pytest, 20 tests, uses REACT_APP_BACKEND_URL). Nav testids follow route slug: nav-dashboard, nav-transactions, nav-accounts, nav-setup, nav-annual, nav-monthly, nav-calendar, nav-budget, nav-funds, nav-debt, nav-networth, nav-invest, nav-nospend, nav-ai (not nav-sinking-funds / nav-investment / nav-no-spend). Login/demo seed works out of the box; AI streaming takes ~5-8s before chunks arrive, allow timeout >=10s."
+}
