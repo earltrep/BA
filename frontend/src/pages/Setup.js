@@ -4,7 +4,8 @@ import { money, CURRENCY_LIST, CURRENCY_SYMBOLS } from "../lib/currency";
 import { useSettings } from "../context/SettingsContext";
 import { PageHeader, Loader } from "../components/ui-kit";
 import Modal, { Field, inputCls, PrimaryBtn } from "../components/Modal";
-import { Plus, Pencil, Trash2, Save, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Trash2, Save, RefreshCw, Zap, Play } from "lucide-react";
+import { Switch } from "../components/ui/switch";
 import { toast } from "sonner";
 
 const BUCKETS = ["needs", "wants", "savings", "income"];
@@ -19,6 +20,26 @@ export default function Setup() {
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("USD");
   const [refreshing, setRefreshing] = useState(false);
+  const [autopilot, setAutopilot] = useState(false);
+  const [running, setRunning] = useState(false);
+
+  const toggleAutopilot = async (v) => {
+    setAutopilot(v);
+    await update({ autopilot: v });
+    toast.success(v ? "Autopilot on — recurring items will be added each month" : "Autopilot off");
+  };
+
+  const runAutopilot = async () => {
+    setRunning(true);
+    try {
+      const { data } = await api.post("/autopilot/run");
+      toast.success(data.inserted ? `Added ${data.inserted} recurring entries for this month` : "You're already caught up for this month");
+    } catch {
+      toast.error("Couldn't run autopilot");
+    } finally {
+      setRunning(false);
+    }
+  };
 
   const doRefreshRates = async () => {
     setRefreshing(true);
@@ -30,7 +51,7 @@ export default function Setup() {
   const load = () => api.get("/categories").then((r) => setCats(r.data));
   useEffect(() => { load(); }, []);
   useEffect(() => {
-    if (settings) { setName(settings.name || ""); setCurrency(settings.base_currency || "USD"); }
+    if (settings) { setName(settings.name || ""); setCurrency(settings.base_currency || "USD"); setAutopilot(!!settings.autopilot); }
   }, [settings]);
 
   const saveSettings = async () => {
@@ -101,6 +122,24 @@ export default function Setup() {
           ))}
         </div>
         <p className="text-xs text-slate-400 mt-3">Rates shown per 1 USD.</p>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm mb-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-start gap-3">
+            <span className="h-10 w-10 grid place-items-center rounded-xl bg-blue-50 text-blue-600 shrink-0"><Zap className="h-5 w-5" /></span>
+            <div>
+              <h3 className="font-head font-semibold text-lg">Recurring Autopilot</h3>
+              <p className="text-sm text-slate-500 mt-1 max-w-md">Automatically add your recurring bills and paychecks at the start of each month, so you never re-enter them.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={runAutopilot} disabled={running} data-testid="autopilot-run-btn" className="inline-flex items-center gap-2 h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition-colors disabled:opacity-60">
+              <Play className="h-4 w-4" /> {running ? "Running…" : "Run now"}
+            </button>
+            <Switch checked={autopilot} onCheckedChange={toggleAutopilot} data-testid="autopilot-toggle" />
+          </div>
+        </div>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">

@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { money } from "../lib/currency";
 import { StatCard, Loader } from "../components/ui-kit";
 import {
-  Wallet, TrendingUp, TrendingDown, PiggyBank, ArrowRight, Sparkles, Landmark,
+  Wallet, TrendingUp, TrendingDown, PiggyBank, ArrowRight, Sparkles, Landmark, AlertTriangle,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell,
@@ -16,10 +16,12 @@ const PIE_COLORS = ["#0f172a", "#0ea5e9", "#f59e0b", "#10b981", "#8b5cf6", "#ef4
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [recent, setRecent] = useState([]);
+  const [alerts, setAlerts] = useState([]);
 
   useEffect(() => {
     api.get("/dashboard").then((r) => setData(r.data));
     api.get("/transactions").then((r) => setRecent(r.data.slice(0, 7)));
+    api.get("/alerts").then((r) => setAlerts(r.data.alerts));
   }, []);
 
   if (!data) return <Loader label="Crunching your numbers…" />;
@@ -50,6 +52,30 @@ export default function Dashboard() {
         <StatCard testid="stat-balance" label="Accounts Balance" value={money(data.account_total, cur, { compact: true })} icon={Wallet} accent="blue" />
         <StatCard testid="stat-networth" label="Net Worth" value={money(data.net_worth, cur, { compact: true })} icon={Landmark} accent="slate" />
       </div>
+
+      {alerts.length > 0 && (
+        <div data-testid="budget-alerts" className="bg-white border border-amber-200 rounded-2xl p-6 shadow-sm mb-5">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="h-8 w-8 grid place-items-center rounded-xl bg-amber-50 text-amber-600"><AlertTriangle className="h-4 w-4" /></span>
+            <h3 className="font-head font-semibold text-lg">Budget alerts</h3>
+            <span className="text-xs text-slate-400">· categories nearing or over budget this month</span>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {alerts.map((a) => (
+              <div key={a.id} data-testid={`alert-${a.id}`} className={`rounded-xl border p-3 ${a.level === "over" ? "border-rose-200 bg-rose-50/50" : "border-amber-200 bg-amber-50/40"}`}>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: a.color }} />{a.name}</span>
+                  <span className={`text-xs font-semibold ${a.level === "over" ? "text-rose-600" : "text-amber-600"}`}>{a.pct}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-white mt-2 overflow-hidden">
+                  <div className={`h-full rounded-full ${a.level === "over" ? "bg-rose-500" : "bg-amber-500"}`} style={{ width: `${Math.min(a.pct, 100)}%` }} />
+                </div>
+                <div className="text-xs text-slate-500 mt-1.5 tnum">{money(a.spent, cur)} of {money(a.budget, cur)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
         <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">

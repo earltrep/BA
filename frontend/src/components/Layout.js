@@ -6,6 +6,7 @@ import {
   LayoutDashboard, ArrowLeftRight, Wallet, SlidersHorizontal, BarChart3,
   CalendarRange, CalendarDays, PieChart, PiggyBank, TrendingDown, Landmark,
   LineChart, CalendarCheck, Sparkles, LogOut, Menu, X, Coins, Receipt, Compass,
+  GitCompareArrows, Target,
 } from "lucide-react";
 
 const NAV = [
@@ -25,6 +26,7 @@ const NAV = [
       { to: "/monthly", label: "Monthly Insights", icon: CalendarRange },
       { to: "/paycheck", label: "Paycheck Planner", icon: Receipt },
       { to: "/expenses", label: "Expense Explorer", icon: Compass },
+      { to: "/compare", label: "Year Compare", icon: GitCompareArrows },
       { to: "/calendar", label: "Calendar", icon: CalendarDays },
     ],
   },
@@ -33,6 +35,7 @@ const NAV = [
     items: [
       { to: "/budget", label: "50 / 30 / 20", icon: PieChart },
       { to: "/funds", label: "Sinking Funds", icon: PiggyBank },
+      { to: "/funding", label: "Goal Funding Plan", icon: Target },
       { to: "/debt", label: "Debt Payoff", icon: TrendingDown },
       { to: "/networth", label: "Net Worth", icon: Landmark },
       { to: "/invest", label: "Investment Forecast", icon: LineChart },

@@ -15,12 +15,14 @@ import Annual from "./pages/Annual";
 import Monthly from "./pages/Monthly";
 import Paycheck from "./pages/Paycheck";
 import ExpenseExplorer from "./pages/ExpenseExplorer";
+import Compare from "./pages/Compare";
 import CalendarView from "./pages/CalendarView";
 import Budget503020 from "./pages/Budget503020";
 import SinkingFunds from "./pages/SinkingFunds";
 import Debt from "./pages/Debt";
 import NetWorth from "./pages/NetWorth";
 import Investment from "./pages/Investment";
+import FundingPlan from "./pages/FundingPlan";
 import NoSpend from "./pages/NoSpend";
 import AIInsights from "./pages/AIInsights";
 
@@ -59,12 +61,14 @@ function App() {
               <Route path="/monthly" element={<Monthly />} />
               <Route path="/paycheck" element={<Paycheck />} />
               <Route path="/expenses" element={<ExpenseExplorer />} />
+              <Route path="/compare" element={<Compare />} />
               <Route path="/calendar" element={<CalendarView />} />
               <Route path="/budget" element={<Budget503020 />} />
               <Route path="/funds" element={<SinkingFunds />} />
               <Route path="/debt" element={<Debt />} />
               <Route path="/networth" element={<NetWorth />} />
               <Route path="/invest" element={<Investment />} />
+              <Route path="/funding" element={<FundingPlan />} />
               <Route path="/nospend" element={<NoSpend />} />
               <Route path="/ai" element={<AIInsights />} />
             </Route>

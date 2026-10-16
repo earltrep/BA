@@ -9,6 +9,7 @@ import json
 import uuid
 import random
 import asyncio
+import hmac
 import logging
 from collections import defaultdict
 
@@ -18,7 +19,7 @@ from typing import List, Optional
 
 import jwt
 import bcrypt
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -168,6 +169,7 @@ class LoginIn(BaseModel):
 class SettingsIn(BaseModel):
     name: Optional[str] = None
     base_currency: Optional[str] = None
+    autopilot: Optional[bool] = None
 
 
 class AccountIn(BaseModel):
@@ -592,8 +594,10 @@ async def build_summary(uid: str) -> dict:
     total_expense = 0.0
 
     for t in txns:
-        amt = convert(float(t["amount"]), t.get("currency", "USD"), base)
         mk = t.get("date", "")[:7]
+        if not mk.startswith(str(year)):
+            continue
+        amt = convert(float(t["amount"]), t.get("currency", "USD"), base)
         if t["type"] == "income":
             total_income += amt
             if mk in monthly:
@@ -692,9 +696,12 @@ async def paycheck(user=Depends(current_user)):
     month_bills = defaultdict(float)
     month_savings = defaultdict(float)
     incomes = []
+    year = datetime.now(timezone.utc).year
     for t in txns:
-        amt = convert(float(t["amount"]), t.get("currency", "USD"), base)
         mk = t.get("date", "")[:7]
+        if not mk.startswith(str(year)):
+            continue
+        amt = convert(float(t["amount"]), t.get("currency", "USD"), base)
         if t["type"] == "income":
             month_income[mk] += amt
             incomes.append((t, amt, mk))
@@ -747,11 +754,13 @@ async def expense_breakdown(user=Depends(current_user)):
     for t in txns:
         if t["type"] != "expense":
             continue
+        mk = t.get("date", "")[:7]
+        if not mk.startswith(str(year)):
+            continue
         amt = convert(float(t["amount"]), t.get("currency", "USD"), base)
         cat = cats.get(t.get("category_id"))
         name = cat["name"] if cat else "Uncategorized"
         color = cat["color"] if cat else "#94a3b8"
-        mk = t.get("date", "")[:7]
         d = data.setdefault(name, {"name": name, "color": color, "total": 0.0, "monthly": {m: 0.0 for m in months}})
         d["total"] += amt
         if mk in d["monthly"]:
@@ -824,6 +833,187 @@ async def ai_insights(body: AIRequest, user=Depends(current_user)):
         media_type="text/plain",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Budget alerts
+# ---------------------------------------------------------------------------
+@api.get("/alerts")
+async def alerts(user=Depends(current_user)):
+    uid = user["id"]
+    s = await db.settings.find_one({"user_id": uid}, {"_id": 0}) or {"base_currency": "USD"}
+    base = s.get("base_currency", "USD")
+    cats = await list_docs("categories", uid)
+    txns = await list_docs("transactions", uid)
+    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    spent = {}
+    for t in txns:
+        if t["type"] == "expense" and t.get("date", "")[:7] == month and t.get("category_id"):
+            spent[t["category_id"]] = spent.get(t["category_id"], 0) + convert(float(t["amount"]), t.get("currency", "USD"), base)
+    out = []
+    for c in cats:
+        if c["type"] != "expense" or not c.get("budget"):
+            continue
+        sp = round(spent.get(c["id"], 0), 2)
+        budget = float(c["budget"])
+        pct = round(sp / budget * 100) if budget else 0
+        level = "over" if pct >= 100 else "warning" if pct >= 80 else "ok"
+        if level != "ok":
+            out.append({"id": c["id"], "name": c["name"], "color": c["color"], "spent": sp, "budget": budget, "pct": pct, "level": level})
+    out.sort(key=lambda x: x["pct"], reverse=True)
+    return {"month": month, "base_currency": base, "alerts": out}
+
+
+# ---------------------------------------------------------------------------
+# Recurring autopilot
+# ---------------------------------------------------------------------------
+async def generate_recurring(uid: str, target_month: str) -> int:
+    txns = await list_docs("transactions", uid, {"kind": "recurring"})
+    if not txns:
+        return 0
+    source_months = sorted({t["date"][:7] for t in txns if t["date"][:7] < target_month}, reverse=True)
+    if not source_months:
+        return 0
+    src = source_months[0]
+    existing = {(t["description"], t.get("category_id"), t["date"][8:10]) for t in txns if t["date"][:7] == target_month}
+    docs = []
+    for t in txns:
+        if t["date"][:7] != src:
+            continue
+        day = t["date"][8:10]
+        key = (t["description"], t.get("category_id"), day)
+        if key in existing:
+            continue
+        existing.add(key)
+        docs.append({
+            "id": str(uuid.uuid4()), "user_id": uid, "created_at": datetime.now(timezone.utc).isoformat(),
+            "date": f"{target_month}-{day}", "description": t["description"], "amount": t["amount"],
+            "currency": t.get("currency", "USD"), "type": t["type"], "kind": "recurring",
+            "category_id": t.get("category_id"), "account_id": t.get("account_id"),
+        })
+    if docs:
+        await db.transactions.insert_many(docs)
+    return len(docs)
+
+
+@api.post("/autopilot/run")
+async def autopilot_run(user=Depends(current_user)):
+    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    n = await generate_recurring(user["id"], month)
+    return {"inserted": n, "month": month}
+
+
+async def run_autopilot_all():
+    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    rows = await db.settings.find({"autopilot": True}, {"_id": 0}).to_list(10000)
+    total = 0
+    for s in rows:
+        try:
+            total += await generate_recurring(s["user_id"], month)
+        except Exception as e:
+            logger.warning(f"autopilot failed for {s.get('user_id')}: {e}")
+    logger.info(f"Autopilot added {total} recurring entries for {len(rows)} users")
+
+
+@api.post("/cron/autopilot")
+async def cron_autopilot(request: Request, background_tasks: BackgroundTasks):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    secret = os.environ.get("WEBHOOK_CRON_SECRET", "")
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:] if auth.startswith("Bearer ") else ""
+    if not secret or not hmac.compare_digest(token, secret):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    background_tasks.add_task(run_autopilot_all)
+    return {"ok": True, "queued": True}
+
+
+# ---------------------------------------------------------------------------
+# Goal funding plan
+# ---------------------------------------------------------------------------
+@api.get("/goals/plan")
+async def goals_plan(user=Depends(current_user)):
+    uid = user["id"]
+    s = await db.settings.find_one({"user_id": uid}, {"_id": 0}) or {"base_currency": "USD"}
+    base = s.get("base_currency", "USD")
+    funds = await list_docs("sinking_funds", uid)
+    txns = await list_docs("transactions", uid)
+    year = datetime.now(timezone.utc).year
+    month_now = datetime.now(timezone.utc).month
+    income_total = sum(
+        convert(float(t["amount"]), t.get("currency", "USD"), base)
+        for t in txns if t["type"] == "income" and t.get("date", "")[:4] == str(year)
+    )
+    avg_income = round(income_total / month_now, 2) if month_now else 0
+    today = datetime.now(timezone.utc).date()
+    plan = []
+    total_monthly = 0.0
+    for f in funds:
+        remaining = max(float(f["target"]) - float(f.get("saved", 0)), 0)
+        months_left = 12
+        if f.get("due_date"):
+            try:
+                due = datetime.strptime(f["due_date"], "%Y-%m-%d").date()
+                months_left = max((due.year - today.year) * 12 + (due.month - today.month), 1)
+            except Exception:
+                pass
+        monthly = round(remaining / months_left, 2) if months_left else remaining
+        total_monthly += monthly
+        plan.append({
+            "id": f["id"], "name": f["name"], "color": f["color"], "target": float(f["target"]),
+            "saved": float(f.get("saved", 0)), "remaining": round(remaining, 2),
+            "months_left": months_left, "monthly": monthly, "due_date": f.get("due_date"),
+        })
+    plan.sort(key=lambda x: x["monthly"], reverse=True)
+    pct_income = round(total_monthly / avg_income * 100, 1) if avg_income else 0
+    return {
+        "base_currency": base, "avg_monthly_income": avg_income,
+        "total_monthly": round(total_monthly, 2), "pct_income": pct_income, "plan": plan,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Year-over-year compare
+# ---------------------------------------------------------------------------
+@api.get("/compare")
+async def compare(user=Depends(current_user)):
+    uid = user["id"]
+    s = await db.settings.find_one({"user_id": uid}, {"_id": 0}) or {"base_currency": "USD"}
+    base = s.get("base_currency", "USD")
+    txns = await list_docs("transactions", uid)
+    cur_year = datetime.now(timezone.utc).year
+    prev_year = cur_year - 1
+
+    def build(year):
+        months = {f"{year}-{m:02d}": {"income": 0.0, "expense": 0.0} for m in range(1, 13)}
+        for t in txns:
+            mk = t.get("date", "")[:7]
+            if mk in months:
+                amt = convert(float(t["amount"]), t.get("currency", "USD"), base)
+                months[mk]["income" if t["type"] == "income" else "expense"] += amt
+        return months
+
+    cy, py = build(cur_year), build(prev_year)
+    labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    rows = []
+    for i, m in enumerate(range(1, 13)):
+        ck, pk = f"{cur_year}-{m:02d}", f"{prev_year}-{m:02d}"
+        rows.append({
+            "label": labels[i],
+            "cur_income": round(cy[ck]["income"], 2), "cur_expense": round(cy[ck]["expense"], 2),
+            "prev_income": round(py[pk]["income"], 2), "prev_expense": round(py[pk]["expense"], 2),
+            "cur_net": round(cy[ck]["income"] - cy[ck]["expense"], 2),
+            "prev_net": round(py[pk]["income"] - py[pk]["expense"], 2),
+        })
+
+    def tot(d):
+        inc = sum(v["income"] for v in d.values())
+        exp = sum(v["expense"] for v in d.values())
+        return {"income": round(inc, 2), "expense": round(exp, 2), "net": round(inc - exp, 2)}
+
+    return {
+        "base_currency": base, "current_year": cur_year, "previous_year": prev_year,
+        "rows": rows, "totals": {"current": tot(cy), "previous": tot(py)},
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -952,6 +1142,38 @@ async def seed_demo(uid: str):
         )
 
 
+async def seed_prev_year(uid: str):
+    prev = datetime.now(timezone.utc).year - 1
+    if await db.transactions.find_one({"user_id": uid, "date": {"$regex": f"^{prev}-"}}):
+        return
+    cats = {c["name"]: c["id"] for c in await list_docs("categories", uid)}
+    accts = {a["name"]: a["id"] for a in await list_docs("accounts", uid)}
+    if "Salary" not in cats:
+        return
+    rnd = random.Random(7)
+    docs = []
+
+    def add(date, desc, amount, ctype, kind, cat, acc="Everyday Checking", ccy="USD"):
+        docs.append({
+            "id": str(uuid.uuid4()), "user_id": uid, "created_at": datetime.now(timezone.utc).isoformat(),
+            "date": date, "description": desc, "amount": amount, "currency": ccy,
+            "type": ctype, "kind": kind, "category_id": cats.get(cat), "account_id": accts.get(acc),
+        })
+
+    for m in range(1, 13):
+        add(f"{prev}-{m:02d}-01", "Monthly Salary", 4900, "income", "recurring", "Salary")
+        add(f"{prev}-{m:02d}-02", "Apartment rent", 1550, "expense", "recurring", "Rent")
+        add(f"{prev}-{m:02d}-05", "Electricity & water", rnd.randint(190, 230), "expense", "recurring", "Utilities")
+        add(f"{prev}-{m:02d}-03", "Auto-save to savings", 600, "expense", "recurring", "Savings Transfer", "High-Yield Savings")
+        for _ in range(4):
+            add(f"{prev}-{m:02d}-{rnd.randint(6, 27):02d}", "Groceries purchase", rnd.randint(45, 150), "expense", "variable", "Groceries")
+        for _ in range(3):
+            add(f"{prev}-{m:02d}-{rnd.randint(6, 27):02d}", "Dining purchase", rnd.randint(20, 80), "expense", "variable", "Dining Out")
+    if docs:
+        await db.transactions.insert_many(docs)
+
+
+
 @app.on_event("startup")
 async def startup():
     await db.users.create_index("email", unique=True)
@@ -979,6 +1201,8 @@ async def startup():
                 {"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}}
             )
         await seed_demo(existing["id"])
+    demo_uid = existing["id"] if existing else uid
+    await seed_prev_year(demo_uid)
     await refresh_rates()
     logger.info("Startup complete")
 
