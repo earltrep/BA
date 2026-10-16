@@ -42,7 +42,11 @@ Transactions (recurring + variable, multi-currency), Bank Accounts, Categories/S
 - [x] No-Spend Challenge (streak calendar).
 - [x] AI Insights (streaming Claude over real budget data, persisted history).
 - [x] Demo data seeding on startup.
-- Tested: backend 20/20 pytest, frontend E2E 100%.
+- [x] Paycheck Planner (per-paycheck bills/savings/spending split, stacked chart).
+- [x] CSV Import (bulk upload bank CSV → transactions, client parse + preview).
+- [x] Expense Explorer (category donut + drill-down trend & transactions).
+- [x] Live Exchange Rates (open.er-api.com, refreshable; all conversions use live FX).
+- Tested: backend 27/27 pytest, frontend E2E 100% (2 rounds).
 
 ## Backlog (prioritized)
 - P1: Expense Distribution as a dedicated page (currently in Dashboard donut + Monthly).

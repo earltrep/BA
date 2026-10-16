@@ -258,3 +258,98 @@ class TestAI:
         r.close()
         text = "".join(chunks)
         assert len(text) > 0
+
+
+# ---- Live Exchange Rates ----
+class TestRates:
+    def test_get_rates(self, demo_client):
+        r = demo_client.get(f"{API}/rates")
+        assert r.status_code == 200
+        data = r.json()
+        assert "rates" in data and "live" in data
+        assert "USD" in data["rates"] and data["rates"]["USD"]["rate"] == 1.0
+        assert "EUR" in data["rates"]
+
+    def test_refresh_rates(self, demo_client):
+        r = demo_client.post(f"{API}/rates/refresh")
+        assert r.status_code == 200
+        data = r.json()
+        assert "rates" in data
+        # If live, EUR should NOT be the static 0.92
+        if data.get("live"):
+            eur = data["rates"]["EUR"]["rate"]
+            # Should be around 0.85-0.95 but not exactly 0.92 (static)
+            assert eur != 0.92, "EUR rate still matches static 0.92 fallback"
+            assert 0.5 < eur < 2.0
+
+    def test_settings_includes_rates_updated(self, demo_client):
+        r = demo_client.get(f"{API}/settings")
+        assert r.status_code == 200
+        data = r.json()
+        assert "currencies" in data
+        assert "rates_updated" in data
+
+
+# ---- Bulk transactions / CSV import ----
+class TestBulkTxn:
+    def test_bulk_insert_and_cleanup(self, demo_client):
+        payload = {
+            "transactions": [
+                {"date": "2026-01-05", "description": "TEST_BULK_1", "amount": 50.0, "currency": "USD", "type": "expense", "kind": "variable"},
+                {"date": "2026-01-06", "description": "TEST_BULK_2", "amount": 1200.0, "currency": "USD", "type": "income", "kind": "recurring"},
+                {"date": "2026-01-07", "description": "TEST_BULK_3", "amount": 12.5, "currency": "EUR", "type": "expense", "kind": "variable"},
+            ]
+        }
+        r = demo_client.post(f"{API}/transactions/bulk", json=payload)
+        assert r.status_code == 200
+        assert r.json()["inserted"] == 3
+
+        # verify present
+        r = demo_client.get(f"{API}/transactions?month=2026-01")
+        rows = r.json()
+        descs = [t["description"] for t in rows]
+        assert "TEST_BULK_1" in descs and "TEST_BULK_2" in descs and "TEST_BULK_3" in descs
+
+        # cleanup
+        for t in rows:
+            if t["description"].startswith("TEST_BULK_"):
+                demo_client.delete(f"{API}/transactions/{t['id']}")
+
+    def test_bulk_empty(self, demo_client):
+        r = demo_client.post(f"{API}/transactions/bulk", json={"transactions": []})
+        assert r.status_code == 200
+        assert r.json()["inserted"] == 0
+
+
+# ---- Paycheck Planner ----
+class TestPaycheck:
+    def test_paycheck(self, demo_client):
+        r = demo_client.get(f"{API}/paycheck")
+        assert r.status_code == 200
+        data = r.json()
+        assert "paychecks" in data and "totals" in data
+        assert isinstance(data["paychecks"], list)
+        assert len(data["paychecks"]) > 0
+        for p in data["paychecks"]:
+            for k in ("date", "amount", "bills", "savings", "spending"):
+                assert k in p
+            # Bills + savings + spending should roughly equal amount (within 1.0 for rounding)
+            total = p["bills"] + p["savings"] + p["spending"]
+            assert abs(total - p["amount"]) < 1.5, f"Allocation mismatch: {p}"
+        totals = data["totals"]
+        for k in ("amount", "bills", "savings", "spending"):
+            assert k in totals
+
+
+# ---- Expense Explorer ----
+class TestExpenseBreakdown:
+    def test_breakdown(self, demo_client):
+        r = demo_client.get(f"{API}/expenses/breakdown")
+        assert r.status_code == 200
+        data = r.json()
+        assert "categories" in data and "months" in data and "total" in data
+        assert len(data["months"]) == 12
+        assert len(data["categories"]) > 0
+        for c in data["categories"]:
+            assert "name" in c and "total" in c and "monthly" in c
+            assert len(c["monthly"]) == 12

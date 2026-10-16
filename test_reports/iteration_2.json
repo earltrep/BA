@@ -1,0 +1,29 @@
+{
+  "summary": "Round 2 testing of 4 new features + regression. Backend: all 27 pytest tests pass (20 regression + 7 new: /api/rates, /api/rates/refresh, /api/settings rates_updated, /api/transactions/bulk x2, /api/paycheck, /api/expenses/breakdown). Live FX works - EUR=0.8917 (not static 0.92), rates_updated populated. Paycheck allocation verified: bills+savings+spending within $1.5 of amount per row. Frontend: demo login works, Paycheck Planner page shows 4 KPIs (pay-total/bills/savings/spending), stacked bar chart, and table (7+ visible rows). Expense Explorer renders donut, 11 clickable categories, trend chart updates on category click, drill-down transaction list populates. Setup page shows Live exchange rates panel with LIVE badge, per-currency cards (rate-USD/EUR/GBP/INR/CAD/AUD/JPY/CNY/CHF/SGD) and Refresh rates button that triggers POST /api/rates/refresh (toast 'Exchange rates updated'). CSV import flow works end-to-end: import-csv-btn opens import-modal, csv-file-input accepts file, preview shows, confirm-import-btn POSTs /api/transactions/bulk and the 3 TEST_CSV_* rows appear in the Transactions list; negative amount -25.50 was persisted as expense per CSV spec. Regression nav (dashboard, debt, ai, monthly, annual) all load without errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Setup page", "issues": ["Hydration warning: '<span> cannot be a child of <option>' - carried over from iteration 1, dev-tool x-source injection, user-invisible."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Optional/minor: Paycheck table row data-testid is 'paycheck-row-<id>' but review request mentioned 'pay-row-<id>'. KPIs match spec (pay-total, pay-bills, pay-savings, pay-spending). Decide if naming should be aligned."
+  ],
+  "critical_code_review_comments": [
+    "server.py grew to 1005 lines (new rates, bulk, paycheck, expenses endpoints) - well past the 700-line threshold. Strongly recommend splitting into routers/ and services/ modules.",
+    "refresh_rates() uses blocking requests.get in executor - acceptable but httpx.AsyncClient would be cleaner.",
+    "LIVE_RATES is a process-local dict - fine for single-instance; if scaled to multiple backend replicas each would have its own stale cache. Consider caching rates in MongoDB with TTL for horizontal scaling.",
+    "/api/transactions/bulk performs no per-row validation feedback - rejects or accepts whole batch via Pydantic; no partial-success report returned to UI (just inserted count). Acceptable for MVP.",
+    "convert() rounds to 2dp per hop - fine for USD/EUR but introduces small drift for JPY (zero-decimal currencies) and chained conversions."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py", "/app/test_reports/iteration_2.json", "/app/test_reports/pytest/pytest_results.xml"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "demo@budgetly.app / demo1234 (works)",
+  "seed_data_creation": "CSV import test uploaded 3 TEST_CSV_* transactions; cleaned up via DELETE /api/transactions/{id} at end of test run. Pytest TestBulkTxn also inserts+deletes TEST_BULK_* rows.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests at /app/backend/tests/backend_test.py now cover 27 tests (added TestRates, TestBulkTxn, TestPaycheck, TestExpenseBreakdown). Live FX fetches from https://open.er-api.com/v6/latest/USD on startup and on-demand; EUR currently ~0.8917. Paycheck table row testid is 'paycheck-row-<id>' (not 'pay-row-<id>'). CSV import flow: import-csv-btn -> import-modal -> csv-file-input (type=file) -> preview -> confirm-import-btn -> POST /api/transactions/bulk."
+}
