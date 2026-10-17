@@ -1,67 +1,37 @@
-# Budgetly — Product Requirements Document
+# Budgetly — Product Requirements
 
-## Original Problem Statement
-"Build a web based app with the same features as this: https://www.etsy.com/listing/1807934295/ultimate-annual-budget-spreadsheet-excel"
-The Etsy product is the "Ultimate Annual Budget Spreadsheet" (28 tabs, 4 sections). Reimagined as a full-stack web app.
-
-## User Choices
-- Auth: JWT email + password
-- Scope: all features
-- Multi-currency support
-- Visual style: clean & light modern fintech
-- AI spending insights assistant (Emergent Universal Key, Claude)
+## Overview
+Budgetly is a responsive **frontend-only, static** annual budgeting planner (inspired by an Etsy "Ultimate Annual Budget Spreadsheet"). It runs entirely in the browser — no accounts, no backend, no server. All data is stored locally in **IndexedDB**. Designed for Etsy buyers to run on any static host.
 
 ## Architecture
-- Frontend: React 19 (CRA/craco), react-router-dom, recharts, lucide-react, Shadcn UI, Tailwind. Manrope + IBM Plex Sans.
-- Backend: FastAPI (single server.py), JWT Bearer auth (bcrypt), Motor/MongoDB.
-- AI: emergentintegrations LlmChat (claude-sonnet-5-5) streaming over /api/ai/insights.
-- Multi-currency: per-record currency + static rate table; dashboards convert to base currency.
+- **React** SPA (HashRouter) in `/app/frontend`.
+- Local client-side API layer (`src/lib/api.js`) mimics the old axios `{ data }` shape so pages work unchanged. No `/api` network calls.
+- IndexedDB wrapper: `src/lib/db.js`. Calc engine: `src/lib/engine.js`. FX: `src/lib/rates.js` (public endpoint, non-blocking). Backup: `src/lib/backup.js`. Sample data: `src/lib/sampleData.js`. Google Drive: `src/lib/gdrive.js` (GIS, `drive.file`, public client ID stored locally).
+- Legacy `/app/backend` (FastAPI + Mongo) preserved but NOT used at runtime. Do not delete.
+- Build: `yarn build` → `frontend/build`. Static configs: `public/_redirects`, `vercel.json`. Deploy doc: `/app/DEPLOYMENT.md`.
 
-## User Personas
-- Individuals / couples tracking an annual personal budget.
-- Demo account: demo@budgetly.app / demo1234 (seeded with a realistic year of data).
+## Core Features (implemented)
+- Dashboard, Transactions, Accounts, Setup & Budgets, Annual/Monthly/Calendar, Paycheck Planner, Expense Explorer, Year Compare.
+- Wealth tools: 50/30/20, Sinking Funds, Goal Funding Plan, Debt Payoff, Net Worth, Investment Forecast, No-Spend Challenge.
+- Multi-currency with live FX refresh.
+- Budget Alerts, Recurring Autopilot (runs on app open), CSV import.
+- Local backup/restore (JSON), reset-to-blank, sample data.
+- Google Drive export (owner pastes public OAuth Client ID).
+- Unsaved-changes ("needs backup") badge, backup reminders.
+- Getting Started guide page.
 
-## Core Requirements (static)
-Transactions (recurring + variable, multi-currency), Bank Accounts, Categories/Setup with 50/30/20 buckets, All-in-one Dashboard, Annual Totals, Monthly Insights (12 months), Automated Calendar, 50/30/20, Expense Distribution, Sinking Funds, Debt Payoff (snowball/avalanche), Net Worth, Investment Forecast, No-Spend Challenge, AI Insights.
+## Recent changes (2026-06)
+- Moved **Getting Started** into the sidebar **Overview** group, directly under Dashboard.
+- **Quick Start Checklist** on Getting Started page: 5-step auto-detecting checklist (name budget, add account, set up categories, log transaction, download backup) with progress bar; each row links to the relevant page. Auto-updates via `budgetly:meta` event. (Guide.js)
+- **Load a sample budget** button added on Getting Started page (in addition to Backup page). (Guide.js + sampleData.js)
+- **Backup reminder tuning**: Off / Daily / Weekly / Monthly selector on Backup page, stored in settings `backup_reminder_days` (default 7). Layout `shouldRemind` now honors the chosen frequency; Off disables reminders. (Backup.js, Layout.js, api.js, db.js)
 
-## Implemented (2026-06)
-- [x] JWT auth: register/login/me/logout; token in localStorage.
-- [x] Settings: display name + base currency (15 currencies).
-- [x] Accounts CRUD (per-currency balances).
-- [x] Categories CRUD (type + 50/30/20 bucket + budget).
-- [x] Transactions CRUD + recurring/variable + month filters.
-- [x] Dashboard aggregation (KPIs, cash-flow bar, expense donut, savings, debt, recent).
-- [x] Annual Totals (composed chart + monthly table).
-- [x] Monthly Insights (per-month spend vs budget).
-- [x] Automated Calendar (daily income/expense).
-- [x] 50/30/20 allocation vs targets.
-- [x] Sinking Funds (savings goals, progress).
-- [x] Debt Payoff calculator (snowball/avalanche, interest, schedule).
-- [x] Net Worth (assets/liabilities + accounts + funds).
-- [x] Investment Forecast (compound growth calculator).
-- [x] No-Spend Challenge (streak calendar).
-- [x] AI Insights (streaming Claude over real budget data, persisted history).
-- [x] Demo data seeding on startup.
-- [x] Paycheck Planner (per-paycheck bills/savings/spending split, stacked chart).
-- [x] CSV Import (bulk upload bank CSV → transactions, client parse + preview).
-- [x] Expense Explorer (category donut + drill-down trend & transactions).
-- [x] Live Exchange Rates (open.er-api.com, refreshable; all conversions use live FX).
-- [x] Budget Alerts (dashboard card for categories ≥80%/≥100% of monthly budget).
-- [x] Recurring Autopilot (monthly cron + manual run; auto-adds recurring bills/paychecks; Setup toggle).
-- [x] Goal Funding Plan (per-paycheck/monthly allocation to hit each sinking-fund target on time).
-- [x] Year Compare (this year vs last year KPIs, grouped chart, month table; 2025 data seeded).
-- Tested: backend 38/38 pytest, frontend E2E 100% (3 rounds).
+## Verification status
+- Nav move, checklist auto-detection (4/5 after sample load), reminder persistence across reload, sample load, and reset-to-blank all self-tested via screenshots. Compiles clean.
+- Google Drive real upload still requires deployed origin + OAuth client + live Google account (not runtime-verified).
 
-## Scheduled Jobs
-- `.emergent/crons.yml`: `autopilot-monthly` → POST /api/cron/autopilot on `0 6 1 * *` (1st of month, 06:00 UTC). Secured with WEBHOOK_CRON_SECRET; backgrounds work for all autopilot-enabled users.
-
-## Backlog (prioritized)
-- P1: Expense Distribution as a dedicated page (currently in Dashboard donut + Monthly).
-- P1: Paycheck dashboard (per-paycheck allocation view).
-- P2: Live FX rates (currently static table).
-- P2: CSV import/export of transactions.
-- P2: Split server.py into routers for maintainability.
-- P2: Explicit CORS origins (hardening) now that auth is Bearer-based.
-
-## Next Tasks
-See Next Action Items in the completion summary.
+## Backlog / Next
+- P1: Real-world Google Drive validation on a deployed host.
+- P1: User acceptance testing (persistence, mobile UX, no-backend operation on target static host).
+- P2: Legacy cloud → IndexedDB migration path if user wants existing hosted records.
+- P2: GitHub export/push (resolve via platform support; no direct push possible).

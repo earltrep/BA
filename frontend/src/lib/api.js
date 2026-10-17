@@ -91,7 +91,7 @@ async function route(method, path, body) {
     if (method === "PUT") {
       const s = await getSettingsDoc();
       const patch = {};
-      ["name", "base_currency", "autopilot", "google_client_id"].forEach((k) => { if (body[k] !== undefined && body[k] !== null) patch[k] = body[k]; });
+      ["name", "base_currency", "autopilot", "google_client_id", "backup_reminder_days"].forEach((k) => { if (body[k] !== undefined && body[k] !== null) patch[k] = body[k]; });
       const next = { ...s, ...patch, id: "app" };
       await dbPut("settings", next);
       return next;

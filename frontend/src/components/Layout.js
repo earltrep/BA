@@ -55,28 +55,31 @@ const NAV = [
   },
 ];
 
-function shouldRemind(meta) {
+function shouldRemind(meta, days) {
   if (!meta || !meta.dirty) return false;
+  if (!days || days <= 0) return false;
   const now = Date.now();
-  const WEEK = 7 * 24 * 60 * 60 * 1000;
-  if (meta.last_backup_at) return now - new Date(meta.last_backup_at).getTime() > WEEK;
-  if (meta.first_use_at) return now - new Date(meta.first_use_at).getTime() > WEEK;
+  const window = days * 24 * 60 * 60 * 1000;
+  if (meta.last_backup_at) return now - new Date(meta.last_backup_at).getTime() > window;
+  if (meta.first_use_at) return now - new Date(meta.first_use_at).getTime() > window;
   return false;
 }
 
 export default function Layout() {
-  const { baseCurrency } = useSettings();
+  const { baseCurrency, settings } = useSettings();
   const [open, setOpen] = useState(false);
   const [remind, setRemind] = useState(false);
   const [dirty, setDirty] = useState(false);
 
+  const reminderDays = settings?.backup_reminder_days ?? 7;
+
   useEffect(() => {
     const apply = (m) => setDirty(!!(m && m.dirty));
-    getMeta().then((m) => { apply(m); if (!sessionStorage.getItem("backup_reminder_dismissed")) setRemind(shouldRemind(m)); });
+    getMeta().then((m) => { apply(m); if (!sessionStorage.getItem("backup_reminder_dismissed")) setRemind(shouldRemind(m, reminderDays)); });
     const h = (e) => apply(e.detail);
     window.addEventListener("budgetly:meta", h);
     return () => window.removeEventListener("budgetly:meta", h);
-  }, []);
+  }, [reminderDays]);
 
   const dismiss = () => { sessionStorage.setItem("backup_reminder_dismissed", "1"); setRemind(false); };
   const quickBackup = async () => {

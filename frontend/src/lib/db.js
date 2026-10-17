@@ -113,7 +113,7 @@ export async function dbReplaceAll(dataObj) {
 export async function ensureInit() {
   let settings = await dbGet("settings", "app");
   if (!settings) {
-    settings = { id: "app", name: "", base_currency: "USD", autopilot: true };
+    settings = { id: "app", name: "", base_currency: "USD", autopilot: true, backup_reminder_days: 7 };
     await dbPut("settings", settings);
   }
   let meta = await dbGet("meta", "meta");

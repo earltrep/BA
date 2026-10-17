@@ -6,8 +6,15 @@ import { buildBackup, backupFilename, downloadJSON, validateBackup, restoreBacku
 import { loadSampleData } from "../lib/sampleData";
 import { getAccessToken, uploadToDrive } from "../lib/gdrive";
 import { getMeta } from "../lib/db";
-import { Download, Upload, Database, ShieldAlert, CheckCircle2, Sparkles, Trash2, Cloud } from "lucide-react";
+import { Download, Upload, Database, ShieldAlert, CheckCircle2, Sparkles, Trash2, Cloud, Bell } from "lucide-react";
 import { toast } from "sonner";
+
+const REMINDER_OPTIONS = [
+  { label: "Off", value: 0 },
+  { label: "Daily", value: 1 },
+  { label: "Weekly", value: 7 },
+  { label: "Monthly", value: 30 },
+];
 
 export default function Backup() {
   const { settings, update } = useSettings();
@@ -80,6 +87,14 @@ export default function Backup() {
   const saveClientId = async () => {
     try { await update({ google_client_id: clientId.trim() }); toast.success("Google Client ID saved on this device"); }
     catch { toast.error("Couldn't save the Client ID."); }
+  };
+
+  const setReminder = async (value) => {
+    try {
+      await update({ backup_reminder_days: value });
+      const opt = REMINDER_OPTIONS.find((o) => o.value === value);
+      toast.success(value === 0 ? "Backup reminders turned off" : `Backup reminder set to ${opt.label.toLowerCase()}`);
+    } catch { toast.error("Couldn't save the reminder setting."); }
   };
 
   const saveToDrive = async () => {
@@ -185,6 +200,28 @@ export default function Backup() {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm mt-5" data-testid="reminder-settings">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="h-10 w-10 grid place-items-center rounded-xl bg-amber-100 text-amber-600 shrink-0"><Bell className="h-5 w-5" /></div>
+          <div>
+            <h3 className="font-head font-semibold text-lg">Backup reminders</h3>
+            <p className="text-sm text-slate-500 mt-1">Choose how often we nudge you to download a backup when you have unsaved-to-file changes.</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {REMINDER_OPTIONS.map((o) => {
+            const active = (settings?.backup_reminder_days ?? 7) === o.value;
+            return (
+              <button key={o.value} onClick={() => setReminder(o.value)} data-testid={`reminder-opt-${o.value}`}
+                className={`h-10 px-5 rounded-xl text-sm font-medium border transition-colors ${active ? "bg-slate-900 border-slate-900 text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-slate-400 mt-3">Reminders only appear inside the app when it's open — your budget is never backed up automatically.</p>
       </div>
 
       <Modal open={confirmOpen} onClose={() => !busy && setConfirmOpen(false)} title="Restore this backup?" testid="restore-confirm-modal">

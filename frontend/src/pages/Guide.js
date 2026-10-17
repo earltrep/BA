@@ -1,7 +1,14 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/ui-kit";
-import { HardDrive, Download, Upload, Smartphone, RefreshCw, Repeat, Cloud } from "lucide-react";
+import { useSettings } from "../context/SettingsContext";
+import { dbGetAll, getMeta } from "../lib/db";
+import { loadSampleData } from "../lib/sampleData";
+import { toast } from "sonner";
+import {
+  HardDrive, Download, Upload, Smartphone, RefreshCw, Repeat, Cloud,
+  CheckCircle2, Circle, ArrowRight, Sparkles,
+} from "lucide-react";
 
 const items = [
   {
@@ -42,9 +49,101 @@ const items = [
 ];
 
 export default function Guide() {
+  const navigate = useNavigate();
+  const { settings } = useSettings();
+  const [counts, setCounts] = useState(null);
+  const [meta, setMeta] = useState(null);
+  const [loadingSample, setLoadingSample] = useState(false);
+
+  const load = useCallback(async () => {
+    const [accounts, categories, transactions, m] = await Promise.all([
+      dbGetAll("accounts"), dbGetAll("categories"), dbGetAll("transactions"), getMeta(),
+    ]);
+    setCounts({ accounts: accounts.length, categories: categories.length, transactions: transactions.length });
+    setMeta(m);
+  }, []);
+
+  useEffect(() => {
+    load();
+    const h = () => load();
+    window.addEventListener("budgetly:meta", h);
+    return () => window.removeEventListener("budgetly:meta", h);
+  }, [load]);
+
+  const doSample = async () => {
+    if (!window.confirm("Load the sample budget? This replaces whatever is currently saved in this browser.")) return;
+    setLoadingSample(true);
+    try {
+      await loadSampleData();
+      toast.success("Sample budget loaded — reloading…");
+      setTimeout(() => window.location.reload(), 900);
+    } catch {
+      toast.error("Couldn't load the sample budget.");
+      setLoadingSample(false);
+    }
+  };
+
+  const steps = [
+    { key: "name", label: "Name your budget", help: "Give your plan a name in Setup & Budgets.", to: "/setup", done: !!(settings?.name && settings.name.trim()) },
+    { key: "account", label: "Add a bank account", help: "Track balances across your accounts.", to: "/accounts", done: !!(counts && counts.accounts > 0) },
+    { key: "categories", label: "Set up budget categories", help: "Create income & spending categories with limits.", to: "/setup", done: !!(counts && counts.categories > 0) },
+    { key: "transaction", label: "Log your first transaction", help: "Add income or an expense to see it on your dashboard.", to: "/transactions", done: !!(counts && counts.transactions > 0) },
+    { key: "backup", label: "Download your first backup", help: "Keep your budget safe with a saved file.", to: "/backup", done: !!(meta && meta.last_backup_at) },
+  ];
+  const doneCount = steps.filter((s) => s.done).length;
+  const pct = Math.round((doneCount / steps.length) * 100);
+  const allDone = doneCount === steps.length;
+
   return (
     <div className="fade-up max-w-3xl">
       <PageHeader eyebrow="Help" title="Getting Started & Backups" subtitle="A quick guide to how your planner saves data and how to keep it safe." />
+
+      {/* Quick Start Checklist */}
+      <div data-testid="quick-start-checklist" className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm mb-5">
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <div>
+            <h3 className="font-head font-semibold text-lg">Quick start checklist</h3>
+            <p className="text-sm text-slate-500 mt-1">
+              {allDone ? "You're all set — nice work! 🎉" : "A few quick steps to get your planner up and running."}
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <div data-testid="checklist-progress" className="font-head font-bold text-2xl tabular-nums">{doneCount}/{steps.length}</div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-400">done</div>
+          </div>
+        </div>
+
+        <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden mb-5">
+          <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${pct}%` }} data-testid="checklist-bar" />
+        </div>
+
+        <div className="space-y-2">
+          {steps.map((s) => (
+            <button
+              key={s.key}
+              onClick={() => navigate(s.to)}
+              data-testid={`checklist-step-${s.key}`}
+              className={`w-full flex items-center gap-3 text-left rounded-xl border px-4 py-3 transition-colors ${s.done ? "border-emerald-200 bg-emerald-50/50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
+            >
+              {s.done
+                ? <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" data-testid={`checklist-done-${s.key}`} />
+                : <Circle className="h-5 w-5 text-slate-300 shrink-0" />}
+              <div className="flex-1 min-w-0">
+                <div className={`text-sm font-medium ${s.done ? "text-emerald-800 line-through decoration-emerald-400/60" : "text-slate-800"}`}>{s.label}</div>
+                <div className="text-xs text-slate-500 mt-0.5">{s.help}</div>
+              </div>
+              {!s.done && <ArrowRight className="h-4 w-4 text-slate-400 shrink-0" />}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-5 pt-5 border-t border-slate-100 flex flex-wrap items-center gap-3">
+          <button onClick={doSample} disabled={loadingSample} data-testid="guide-load-sample-btn" className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors disabled:opacity-60">
+            <Sparkles className="h-4 w-4" /> {loadingSample ? "Loading…" : "Load a sample budget"}
+          </button>
+          <span className="text-xs text-slate-400">See every feature filled in with example data. Replaces anything currently in this browser.</span>
+        </div>
+      </div>
 
       <div className="space-y-4">
         {items.map((it) => (
