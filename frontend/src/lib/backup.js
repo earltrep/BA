@@ -72,3 +72,13 @@ export async function restoreBackup(obj) {
 export async function markBackedUp() {
   await patchMeta({ last_backup_at: new Date().toISOString(), dirty: false });
 }
+
+// One-click reset: wipe all planner data back to a blank budget (atomic).
+export async function resetToBlank() {
+  await dbReplaceAll({
+    settings: { id: "app", name: "", base_currency: "USD", autopilot: true },
+    transactions: [], categories: [], accounts: [],
+    sinking_funds: [], debts: [], networth: [], no_spend: [],
+  });
+  await patchMeta({ dirty: false });
+}

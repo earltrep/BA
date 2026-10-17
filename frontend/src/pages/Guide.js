@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { PageHeader } from "../components/ui-kit";
-import { HardDrive, Download, Upload, Smartphone, RefreshCw, Repeat } from "lucide-react";
+import { HardDrive, Download, Upload, Smartphone, RefreshCw, Repeat, Cloud } from "lucide-react";
 
 const items = [
   {
@@ -28,6 +28,11 @@ const items = [
     icon: Upload,
     title: "Restoring a backup",
     body: "Pick your backup file, review the preview (date and record counts), and confirm. If a file is invalid or incompatible, nothing changes — your current budget stays intact.",
+  },
+  {
+    icon: Cloud,
+    title: "Saving to Google Drive (optional)",
+    body: "You can upload a backup straight to your own Google Drive. One-time setup: in Google Cloud Console create an OAuth Web client with the drive.file scope, add your website address under Authorized JavaScript origins, then paste the Client ID on the Backup & Restore page. The Client ID is public and safe in a browser — no password or secret is stored, and the file goes only to your Drive.",
   },
   {
     icon: Repeat,

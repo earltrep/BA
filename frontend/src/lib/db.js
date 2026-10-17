@@ -132,6 +132,9 @@ export async function patchMeta(patch) {
   const m = (await dbGet("meta", "meta")) || { id: "meta", first_use_at: new Date().toISOString(), last_backup_at: null, dirty: false, autopilot_lastrun: null };
   const next = { ...m, ...patch, id: "meta" };
   await dbPut("meta", next);
+  if (typeof window !== "undefined") {
+    try { window.dispatchEvent(new CustomEvent("budgetly:meta", { detail: next })); } catch (_) {}
+  }
   return next;
 }
 
