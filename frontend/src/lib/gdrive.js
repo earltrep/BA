@@ -32,7 +32,7 @@ export async function getAccessToken(clientId) {
         },
         error_callback: (err) => reject(new Error(err && err.message ? err.message : "Google authorization was cancelled.")),
       });
-      client.requestAccessToken({ prompt: "" });
+      client.requestAccessToken();
     } catch (e) {
       reject(e instanceof Error ? e : new Error("Google authorization failed."));
     }

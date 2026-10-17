@@ -1,0 +1,38 @@
+{
+  "summary": "Frontend-only testing of the 3 new features (Unsaved Changes Badge, Reset-to-Blank, Google Drive wiring) plus regression. 100% pass. ZERO /api/ requests across entire session. All data-testid selectors present and wired correctly. Live budgetly:meta CustomEvent updates the sidebar chip + nav-backup-dot without a page reload. Reset-to-Blank confirms, wipes DB and reloads to $0.00 dashboard & empty transactions; Load-sample afterwards repopulates 352 txns. Google Drive card: empty Client ID triggers the exact validation toast ('Enter and save your Google OAuth Client ID first.'); Client ID persists in IndexedDB settings across a full reload; clicking Save-to-Drive loads https://accounts.google.com/gsi/client and makes window.google.accounts available (OAuth popup not completed — expected, no test Google account).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "gdrive.js uses prompt:'' for requestAccessToken — if the user has never consented in this browser, GIS will silently fail with no consent UI. Consider removing the empty prompt or falling back to prompt:'consent' on first use so the user gets a visible popup. Minor UX.",
+    "Backup.js saveToDrive relies on the latest-saved clientId in state (not re-read from settings before upload) — fine today, but typing a new Client ID and clicking Save-to-Drive WITHOUT clicking Save first will still attempt upload with the un-persisted value. Not a bug, but could be clarified.",
+    "resetToBlank() patches meta with dirty:false then forces window.location.reload — if the page is reloaded before the IDB transaction commits (very unlikely given the 900ms setTimeout) you could lose the clean flag. Current timing is safe."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100%"},
+  "test_credentials": "None.",
+  "seed_data_creation": "Used Load-sample-btn to seed 352 txns; cleared via Reset-to-blank and re-seeded for regression.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Verified selectors: backup-status (sidebar chip), nav-backup-dot (amber dot on Backup & Restore nav item, only visible when meta.dirty=true), download-backup-btn, load-sample-btn, reset-blank-btn, drive-client-id-input, save-client-id-btn, drive-upload-btn, restore-file-input (hidden — use set_input_files). The chip updates live via window event 'budgetly:meta' dispatched from db.patchMeta — no reload needed. settings.google_client_id is persisted via api.put('/settings',...) through the local IndexedDB api wrapper, so it survives full reload. DO NOT attempt a real Google OAuth flow — just verify the GIS script loads from accounts.google.com/gsi/client and window.google.accounts becomes defined.",
+  "verified_scenarios": {
+    "chip_initial_emerald_fresh_db": "After clearing budgetly_db, chip reads 'All changes backed up' and nav-backup-dot absent",
+    "chip_amber_after_sample_load": "After Load sample data (reload), chip reads 'Changes need backup' and nav-backup-dot visible",
+    "chip_live_update_on_download": "Clicking download-backup-btn flips chip back to emerald WITHOUT a page reload (via budgetly:meta event); nav-backup-dot disappears",
+    "reset_to_blank_confirm": "reset-blank-btn triggers window.confirm with message starting 'Reset to a blank budget?'; accepting wipes DB, reloads to Dashboard showing $0.00 and transactions tbody empty",
+    "reset_then_sample": "After reset, Load sample data repopulates to 352 txns successfully",
+    "drive_empty_client_id_guard": "Clicking drive-upload-btn with empty Client ID shows toast 'Enter and save your Google OAuth Client ID first.' — no network call attempted",
+    "drive_client_id_persistence": "Saved Client ID '999999999-xyz.apps.googleusercontent.com' survives a full page reload (populated in drive-client-id-input)",
+    "drive_gis_script_loads": "Clicking Save-to-Drive with a dummy Client ID triggers GET https://accounts.google.com/gsi/client and window.google.accounts becomes defined; no /api/ call",
+    "zero_backend_api_calls": "0 /api/ requests captured across whole session (sample load, reset, drive attempt, regression navigation)",
+    "regression_dashboard": "KPIs render with $ figures after sample load",
+    "regression_debt_payoff": "Debt page renders with Calculate/Simulate button",
+    "regression_compare": "Year Compare page loads",
+    "regression_setup": "Setup page shows base-currency select and Save settings button"
+  }
+}
