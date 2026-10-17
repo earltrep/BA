@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { money } from "../lib/currency";
 import { StatCard, Loader } from "../components/ui-kit";
 import {
-  Wallet, TrendingUp, TrendingDown, PiggyBank, ArrowRight, Sparkles, Landmark, AlertTriangle,
+  Wallet, TrendingUp, TrendingDown, PiggyBank, ArrowRight, Download, Landmark, AlertTriangle,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell,
@@ -38,11 +38,11 @@ export default function Dashboard() {
           <h1 className="font-head font-bold text-3xl sm:text-4xl tracking-tight">Financial Overview</h1>
         </div>
         <Link
-          to="/ai"
-          data-testid="dashboard-ai-link"
-          className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+          to="/backup"
+          data-testid="dashboard-backup-link"
+          className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium transition-colors"
         >
-          <Sparkles className="h-4 w-4" /> Ask AI about my money
+          <Download className="h-4 w-4" /> Download backup
         </Link>
       </div>
 
