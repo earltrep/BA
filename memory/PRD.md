@@ -25,6 +25,8 @@ Budgetly is a responsive **frontend-only, static** annual budgeting planner (ins
 - **Quick Start Checklist** on Getting Started page: 5-step auto-detecting checklist (name budget, add account, set up categories, log transaction, download backup) with progress bar; each row links to the relevant page. Auto-updates via `budgetly:meta` event. (Guide.js)
 - **Load a sample budget** button added on Getting Started page (in addition to Backup page). (Guide.js + sampleData.js)
 - **Backup reminder tuning**: Off / Daily / Weekly / Monthly selector on Backup page, stored in settings `backup_reminder_days` (default 7). Layout `shouldRemind` now honors the chosen frequency; Off disables reminders. (Backup.js, Layout.js, api.js, db.js)
+- **Checklist Celebration**: when all 5 steps complete, the checklist card swaps to a "You're all set! 🎉" card with a confetti burst (canvas-confetti) and a "Celebrate again" replay button. `pop-in` keyframe added to index.css. (Guide.js)
+- **Guided Setup Wizard**: a modal that auto-opens once for brand-new users (0 steps done, gated by localStorage `budgetly:wizard_seen`), walking through each step with "Take me there" + Back/Next/Skip + a step progress bar. Reopenable anytime via the "Start guided setup" button on the checklist. (Guide.js) Dependency added: canvas-confetti.
 
 ## Verification status
 - Nav move, checklist auto-detection (4/5 after sample load), reminder persistence across reload, sample load, and reset-to-blank all self-tested via screenshots. Compiles clean.
