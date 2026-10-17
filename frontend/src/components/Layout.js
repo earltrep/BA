@@ -12,7 +12,10 @@ import {
 } from "lucide-react";
 
 const NAV = [
-  { group: "Overview", items: [{ to: "/", label: "Dashboard", icon: LayoutDashboard }] },
+  { group: "Overview", items: [
+    { to: "/", label: "Dashboard", icon: LayoutDashboard },
+    { to: "/guide", label: "Getting Started", icon: HelpCircle },
+  ] },
   {
     group: "Money In & Out",
     items: [
@@ -48,7 +51,6 @@ const NAV = [
     group: "Your Data",
     items: [
       { to: "/backup", label: "Backup & Restore", icon: Download },
-      { to: "/guide", label: "Getting Started", icon: HelpCircle },
     ],
   },
 ];
