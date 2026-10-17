@@ -1,0 +1,40 @@
+{
+  "summary": "Frontend-only Budgetly tested end-to-end (backend intentionally not tested — major architectural change: app is now 100% client-side with IndexedDB). All 13 requested scenarios pass. ZERO backend /api/ requests across the entire browsing session. HashRouter direct-URL/refresh works. Backup download/restore round-trip, malformed-file safety, sample data load, recurring autopilot dedup across reloads, 14 feature pages render without errors, and base-currency persistence after reload all verified. No critical issues found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Backup is unencrypted plain JSON (acknowledged in UI copy) — fine for MVP; consider optional passphrase encryption later.",
+    "`validateBackup` accepts missing array stores silently (treats undefined as 0 count). Acceptable but could warn on partial backups.",
+    "Backup/download has no size/space pre-check; on very large DBs quota errors would propagate as unhandledrejection and show the generic storage toast — already handled in Boot.",
+    "`Setup.js` still imports/uses `api` wrapper (good — abstracts IndexedDB). Note that `settings.base_currency` save path requires explicit Save click; make this clear via a dirty-state indicator (minor UX)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not tested per instructions)", "frontend": "100%"},
+  "test_credentials": "None — app is local, no auth.",
+  "seed_data_creation": "Used built-in 'Load sample data' button to seed; cleaned up implicitly via subsequent restores.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Browser context is important: this test deleted indexedDB('budgetly_db') before starting to simulate a fresh customer. The hidden <input type='file' data-testid='restore-file-input'> cannot be waited-on with wait_for_selector (it's display:hidden); use set_input_files() directly. Note: locator '[data-testid^=\"txn-\"]' also matches UI testids like txn-tab-all/txn-tab-recurring/txn-tab-variable/txn-month-filter (4 non-row elements), so transaction row counts are N-4 of what the locator returns. Base-currency change requires clicking the 'save-settings-btn' — merely changing the select does not persist.",
+  "verified_scenarios": {
+    "no_backend_api_calls": "0 /api/ requests captured; open.er-api.com allowed as per spec",
+    "no_login_direct_dashboard": "Fresh load lands on / with $0.00 KPIs and no login/register text",
+    "load_sample_data": "352 transactions, 12 categories, 4 accounts, 4 funds, 3 debts, 3 networth, 20 nospend seeded",
+    "download_backup": "File MyBudget-2026-10-17.json (160KB) with keys app='budgetly', format_version=1, exported_at ISO, data{...}; last-backup timestamp displayed after",
+    "restore_round_trip": "Preview modal shows correct counts; download-before-restore-btn + confirm-restore-btn work; app reloads with restored data",
+    "malformed_backup_safety": "Non-Budgetly JSON rejected with toast \"This file isn't a Budgetly backup.\"; non-JSON rejected with \"That file isn't valid JSON.\"; no data change",
+    "guide_page": "Content covers backup, IndexedDB, sync, device transfer",
+    "hashrouter_direct_urls": "/#/transactions, /#/backup, /#/setup etc all load directly without server; refresh works",
+    "autopilot_dedup": "Transaction count stable across 3 consecutive reloads",
+    "persistence": "Base currency USD->EUR persisted across reload (requires Save click)",
+    "all_feature_pages": "annual, monthly, paycheck, expenses, compare, calendar, budget, funds, funding, debt, networth, invest, nospend, accounts — all render with no error boundaries"
+  }
+}
